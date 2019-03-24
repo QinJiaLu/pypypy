@@ -1,0 +1,100 @@
+import requests,base64
+from bs4 import BeautifulSoup
+session=requests.session()  #首先创建一个会话，保存cookies
+
+#公用信息
+tel=input('请输入电话号码：')
+headers={
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.121 Safari/537.36'
+    }
+
+#第一步：首先请求发验证码，如果不能发送验证码，那么就请求发送图形验证码，验证后再发送验证码
+try:
+    url='https://h5.ele.me/restapi/eus/login/mobile_send_code'  #发送验证码的地址
+    data={
+        'captcha_hash': "",
+        'captcha_value': "",
+        'mobile': tel,
+        'scf': "ms"
+        }
+    #因为再登录的data中需要validate_token这个参数，所以要提取出来为后面输入
+    token=session.post(url,headers=headers,data=data).json()['validate_token']  #发送请求，获得验证码
+    #token = session.post(url,headers=headers,data=data).json()
+    #print(token)
+except KeyError:
+    url_code='https://h5.ele.me/restapi/eus/v3/captchas'
+    res_code=requests.get(url_code)
+    bs_code=res_code.json()
+    image_1=bs_code['captcha_image']
+    image=image_1[23:]
+    fh = open("code.jpg", "wb")
+    fh.write(base64.b64decode(image))
+    fh.close()
+
+
+    hash=bs_code['captcha_hash']
+    code_value=input('请输入图形验证码：')
+
+
+    url='https://h5.ele.me/restapi/eus/login/mobile_send_code'  #发送验证码的地址
+    data={
+        'captcha_hash': hash,
+        'captcha_value': code_value,
+        'mobile': tel,
+        'scf': "ms"
+        }
+    #因为再登录的data中需要validate_token这个参数，所以要提取出来为后面输入
+    token=session.post(url,headers=headers,data=data).json()['validate_token']
+    #print(token)
+    
+#第二步：用收到的验证码登录
+url_1='https://h5.ele.me/restapi/eus/login/login_by_mobile'
+code=input('请输入验证码：')
+data_1={
+    'mobile': "19946258112",
+    'scf': "ms",
+    'validate_code': code,      #第一步的请求就是为了获得验证码
+    'validate_token': token     #在获得验证码的那一步就已经提取出来了
+
+}
+session.post(url_1,headers=headers,data=data_1)       #请求登录
+#print(r.status_code)
+
+
+#第三步：登录后，首先要在地址况中输入地址，并选择一个确定地址
+url_2='https://www.ele.me/restapi/v2/pois?'  #第一次没有加问号，所以一直报错，也没提示那儿错
+place=input('请输入地址：')
+params={    #开始时把params写成了paras了，所以提示错误
+    'extras[]': 'count',
+    'geohash': 'wtw3sjq6n6um',
+    'keyword': place,
+    'limit': '20',
+    'type': 'nearby'
+}
+res=requests.get(url_2,params=params)
+bs=res.json()
+print('下面是相关信息')
+n=0
+
+for shop in bs:
+    print(str(n)+'.'+shop['name'])
+    n+=1
+place_number=int(input('你要选择哪一个地址：'))
+geohash_1=bs[place_number]['geohash']
+latitude_1=bs[place_number]['latitude']
+longitude_1=bs[place_number]['longitude']
+url_3='https://www.ele.me/restapi/shopping/restaurants?'
+params_1={
+    'extras[]': 'activities',
+    'geohash': geohash_1,
+    'latitude': latitude_1,
+    'limit': '24',
+    'longitude': longitude_1,
+    'offset': '0',
+    'terminal': 'web'
+}
+res_1=session.get(url_3,params=params_1)
+bs_1=res_1.json()
+for i in bs_1:
+    print(i['name'])
+
